@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, orgParam } from "../utils.js";
+import { textResult, errorResult, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type { Register } from "../types.js";
 
 const REGISTER_TYPES = [
@@ -42,6 +42,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
       registerType: registerTypeSchema,
       query: z.string().optional().describe("Filter query string"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -84,24 +85,20 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of register items array"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
 
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(params.items);
-        } catch {
-          return errorResult("Invalid JSON in 'items' parameter.");
-        }
-
-        if (!Array.isArray(parsed)) {
+        const parsed = parseJsonParam(params.items, "items");
+        if (!parsed.ok) return parsed.error;
+        if (!Array.isArray(parsed.value)) {
           return errorResult("'items' must be a JSON array.");
         }
 
-        await client.put(`/api/${org}/registers/${params.registerType}`, parsed);
+        await client.put(`/api/${org}/registers/${params.registerType}`, parsed.value);
         return textResult(
-          `Saved ${parsed.length} item(s) to register **${params.registerType}** (full replacement).`,
+          `Saved ${parsed.value.length} item(s) to register **${params.registerType}** (full replacement).`,
         );
       } catch (err) {
         return errorResult((err as Error).message);
@@ -117,24 +114,20 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of partial register item updates"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
 
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(params.items);
-        } catch {
-          return errorResult("Invalid JSON in 'items' parameter.");
-        }
-
-        if (!Array.isArray(parsed)) {
+        const parsed = parseJsonParam(params.items, "items");
+        if (!parsed.ok) return parsed.error;
+        if (!Array.isArray(parsed.value)) {
           return errorResult("'items' must be a JSON array.");
         }
 
-        await client.patch(`/api/${org}/registers/${params.registerType}`, parsed);
+        await client.patch(`/api/${org}/registers/${params.registerType}`, parsed.value);
         return textResult(
-          `Partially updated ${parsed.length} item(s) in register **${params.registerType}**.`,
+          `Partially updated ${parsed.value.length} item(s) in register **${params.registerType}**.`,
         );
       } catch (err) {
         return errorResult((err as Error).message);

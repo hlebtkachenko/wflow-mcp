@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, orgParam } from "../utils.js";
+import { textResult, errorResult, fmtDate, orgParam, Annotations } from "../utils.js";
 import type {
   OrganizationEntity,
   UserFull,
@@ -21,6 +21,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -44,6 +45,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     "wf_my_organizations",
     "List organizations available to the current user",
     {},
+    Annotations.read,
     async () => {
       try {
         const list = await client.get<OrganizationEntity[]>("/api/user/myorganizations");
@@ -65,6 +67,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -96,6 +99,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -117,6 +121,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
       organization: orgParam,
       userId: z.string().uuid().describe("User ID"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -147,6 +152,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
       lastName: z.string().optional().describe("Last name"),
       hasFullAccess: z.boolean().optional().describe("Grant full access"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -173,6 +179,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
       organization: orgParam,
       userId: z.string().uuid().describe("User ID to remove"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -198,6 +205,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -223,6 +231,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().describe("Role name"),
       description: z.string().optional().describe("Role description"),
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -245,6 +254,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().optional().describe("New role name"),
       description: z.string().optional().describe("New role description"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -266,6 +276,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       organization: orgParam,
       roleId: z.string().uuid().describe("Role ID to delete"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -285,6 +296,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -311,6 +323,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().describe("Team name"),
       description: z.string().optional().describe("Team description"),
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -333,6 +346,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().optional().describe("New team name"),
       description: z.string().optional().describe("New team description"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -354,6 +368,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       organization: orgParam,
       teamId: z.string().uuid().describe("Team ID to delete"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

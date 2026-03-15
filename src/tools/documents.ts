@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtAmount, orgParam } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtAmount, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type {
   DocumentBaseCollection,
   Document,
@@ -19,6 +19,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       page: z.number().int().optional().default(1).describe("Page number"),
       pageSize: z.number().int().optional().default(20).describe("Items per page"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -63,6 +64,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -178,6 +180,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       ignoreLock: z.boolean().optional().describe("Ignore document lock"),
       setAsFilled: z.boolean().optional().describe("Mark as filled after save"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -187,23 +190,23 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
         if (params.setAsFilled != null) q.setAsFilled = String(params.setAsFilled);
 
         const body: Record<string, unknown> = {};
-        if (params.id) body.id = params.id;
+        if (params.id !== undefined) body.id = params.id;
         if (params.type) body.type = params.type;
-        if (params.number) body.number = params.number;
-        if (params.internalCode) body.internalCode = params.internalCode;
-        if (params.variableSymbol) body.variableSymbol = params.variableSymbol;
-        if (params.constantSymbol) body.constantSymbol = params.constantSymbol;
-        if (params.specificSymbol) body.specificSymbol = params.specificSymbol;
-        if (params.issueDate) body.issueDate = params.issueDate;
-        if (params.dueDate) body.dueDate = params.dueDate;
-        if (params.vatDate) body.vatDate = params.vatDate;
+        if (params.number !== undefined) body.number = params.number;
+        if (params.internalCode !== undefined) body.internalCode = params.internalCode;
+        if (params.variableSymbol !== undefined) body.variableSymbol = params.variableSymbol;
+        if (params.constantSymbol !== undefined) body.constantSymbol = params.constantSymbol;
+        if (params.specificSymbol !== undefined) body.specificSymbol = params.specificSymbol;
+        if (params.issueDate !== undefined) body.issueDate = params.issueDate;
+        if (params.dueDate !== undefined) body.dueDate = params.dueDate;
+        if (params.vatDate !== undefined) body.vatDate = params.vatDate;
         if (params.totalAmount != null) body.totalAmount = params.totalAmount;
-        if (params.currency) body.currency = params.currency;
-        if (params.partnerIC) body.partnerIC = params.partnerIC;
-        if (params.partnerVAT) body.partnerVAT = params.partnerVAT;
-        if (params.partnerName) body.partnerName = params.partnerName;
-        if (params.partnerAddress) body.partnerAddress = params.partnerAddress;
-        if (params.description) body.description = params.description;
+        if (params.currency !== undefined) body.currency = params.currency;
+        if (params.partnerIC !== undefined) body.partnerIC = params.partnerIC;
+        if (params.partnerVAT !== undefined) body.partnerVAT = params.partnerVAT;
+        if (params.partnerName !== undefined) body.partnerName = params.partnerName;
+        if (params.partnerAddress !== undefined) body.partnerAddress = params.partnerAddress;
+        if (params.description !== undefined) body.description = params.description;
 
         const result = await client.put<{ id?: string }>(
           `/api/${org}/documents`,
@@ -226,6 +229,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID to delete"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -244,15 +248,13 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       organization: orgParam,
       document: z.string().describe("JSON string of document data"),
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        let docBody: Record<string, unknown>;
-        try {
-          docBody = JSON.parse(params.document) as Record<string, unknown>;
-        } catch {
-          return errorResult("Invalid JSON in 'document' parameter.");
-        }
+        const parsed = parseJsonParam(params.document, "document");
+        if (!parsed.ok) return parsed.error;
+        const docBody = parsed.value as Record<string, unknown>;
         const result = await client.post<{ id?: string }>(
           `/api/${org}/documents/withfiles`,
           docBody,
@@ -273,6 +275,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       action: z.enum(["get", "set"]).default("get").describe("Get or set metadata"),
       metadata: z.string().optional().describe("JSON string of metadata (for set action)"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -280,13 +283,9 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 
         if (params.action === "set") {
           if (!params.metadata) return errorResult("metadata is required for set action.");
-          let body: unknown;
-          try {
-            body = JSON.parse(params.metadata);
-          } catch {
-            return errorResult("Invalid JSON in 'metadata' parameter.");
-          }
-          await client.put(path, body);
+          const parsed = parseJsonParam(params.metadata, "metadata");
+          if (!parsed.ok) return parsed.error;
+          await client.put(path, parsed.value);
           return textResult(`Metadata updated for document ${params.documentId}.`);
         }
 
@@ -310,6 +309,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       documentId: z.string().uuid().describe("Document ID"),
       lock: z.boolean().describe("true to lock, false to unlock"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -331,6 +331,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -365,16 +366,15 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       format: z.string().describe("Export format (e.g. xml, csv)"),
       filter: z.string().optional().describe("JSON string of filter body"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         let body: unknown;
         if (params.filter) {
-          try {
-            body = JSON.parse(params.filter);
-          } catch {
-            return errorResult("Invalid JSON in 'filter' parameter.");
-          }
+          const parsed = parseJsonParam(params.filter, "filter");
+          if (!parsed.ok) return parsed.error;
+          body = parsed.value;
         }
 
         const result = await client.post<unknown>(
@@ -400,6 +400,7 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
       organization: orgParam,
       queue: z.enum(["export", "extract"]).describe("Which queue to check"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -437,6 +438,7 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
       taskType: z.string().describe("Task type identifier"),
       action: z.enum(["create", "processed"]).default("create").describe("Create task or mark as processed"),
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

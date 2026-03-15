@@ -1,12 +1,13 @@
 # wflow MCP Server
 
+[![CI](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 
 MCP server for [wflow](https://www.wflow.com) — Czech accounting automation platform for document management, expense tracking, approvals, storage, and organizational workflows.
 
-80 tools across 10 categories covering the entire wflow API. OAuth2 client credentials authentication, response caching with configurable TTL, retry with exponential backoff, and actionable error messages.
+78 tools across 10 categories covering the entire wflow API. OAuth2 client credentials authentication, response caching with configurable TTL, retry with exponential backoff, and actionable error messages.
 
 ## Requirements
 

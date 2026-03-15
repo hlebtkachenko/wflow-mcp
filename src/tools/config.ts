@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, orgParam } from "../utils.js";
+import { textResult, errorResult, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type {
   DocumentType,
   ApprovalsTemplate,
@@ -19,6 +19,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -47,6 +48,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
       kind: z.string().optional().describe("Document kind"),
       invoiceType: z.string().optional().describe("Invoice type"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -68,6 +70,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
       organization: orgParam,
       typeId: z.string().uuid().describe("Document type ID"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -91,6 +94,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -115,6 +119,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
       organization: orgParam,
       templateId: z.string().uuid().describe("Approval template ID"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -138,16 +143,15 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
       name: z.string().describe("Template name"),
       teams: z.string().optional().describe("Team configuration as JSON string"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { name: params.name };
         if (params.teams) {
-          try {
-            body.teams = JSON.parse(params.teams);
-          } catch {
-            return errorResult("Invalid JSON in 'teams' parameter.");
-          }
+          const parsed = parseJsonParam(params.teams, "teams");
+          if (!parsed.ok) return parsed.error;
+          body.teams = parsed.value;
         }
         const result = await client.put<ApprovalsTemplate>(`/api/${org}/approvalstemplates`, body);
         return textResult(`Approval template saved. ID: ${result?.id ?? "—"}`);
@@ -164,6 +168,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
       organization: orgParam,
       templateId: z.string().uuid().describe("Approval template ID"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -187,6 +192,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -213,19 +219,16 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
       description: z.string().optional().describe("Webhook description"),
       actions: z.string().optional().describe("JSON string array of action names"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { webHookUri: params.webHookUri };
         if (params.description) body.description = params.description;
         if (params.actions) {
-          let parsed: string[];
-          try {
-            parsed = JSON.parse(params.actions) as string[];
-          } catch {
-            return errorResult("Invalid JSON in 'actions' parameter.");
-          }
-          body.actions = parsed.map((a) => ({ action: a }));
+          const parsed = parseJsonParam(params.actions, "actions");
+          if (!parsed.ok) return parsed.error;
+          body.actions = (parsed.value as string[]).map((a) => ({ action: a }));
         }
         const result = await client.put<WebHookRegistration>(`/api/${org}/webhookregistrations`, body);
         return textResult(`Webhook saved. ID: ${result?.id ?? "—"}`);
@@ -242,6 +245,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
       organization: orgParam,
       registrationId: z.string().uuid().describe("Webhook registration ID"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -265,6 +269,7 @@ export function registerIntegrationTools(server: McpServer, client: WflowClient)
     {
       organization: orgParam,
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -282,12 +287,18 @@ export function registerIntegrationTools(server: McpServer, client: WflowClient)
     {
       organization: orgParam,
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const result = await client.post<Record<string, unknown>>(`/api/${org}/integrations/apiclient`);
+        const safe = { ...result };
+        for (const key of Object.keys(safe)) {
+          if (/secret|password|token/i.test(key)) safe[key] = "***REDACTED***";
+        }
         return textResult(
-          `# New API Client\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
+          `# New API Client\n\n**Warning:** Sensitive fields have been redacted. ` +
+          `Use wflow web UI to view full credentials.\n\n\`\`\`json\n${JSON.stringify(safe, null, 2)}\n\`\`\``,
         );
       } catch (err) {
         return errorResult((err as Error).message);

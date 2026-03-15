@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtUserName, orgParam } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtUserName, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type {
   StorageFile,
   StorageFileCollection,
@@ -21,6 +21,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       page: z.number().int().default(1).describe("Page number"),
       pageSize: z.number().int().default(20).describe("Items per page"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -65,6 +66,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("storage file")),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -94,51 +96,13 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
   );
 
   server.tool(
-    "wf_storage_file_upload",
-    "Upload a file to storage",
-    {
-      organization: orgParam,
-    },
-    async (params) => {
-      try {
-        const org = client.resolveOrg(params.organization);
-        return errorResult(
-          `Binary file upload to /api/${org}/storage/files/upload is not supported via MCP text protocol. ` +
-          "Use the wflow web UI or direct API call with multipart/form-data.",
-        );
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  server.tool(
-    "wf_storage_file_download",
-    "Download a storage file",
-    {
-      organization: orgParam,
-      fileId: z.string().uuid().describe(uuidDesc("file to download")),
-    },
-    async (params) => {
-      try {
-        const org = client.resolveOrg(params.organization);
-        return errorResult(
-          `Binary file download from /api/${org}/storage/files/${params.fileId}/download is not supported via MCP text protocol. ` +
-          "Use the wflow web UI or direct API call to download.",
-        );
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  server.tool(
     "wf_storage_file_delete",
     "Delete a storage file (careful!)",
     {
       organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to delete")),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -158,6 +122,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file")),
       lock: z.boolean().describe("true to lock, false to unlock"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -177,6 +142,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file to move")),
       folderId: z.string().uuid().describe(uuidDesc("target folder")),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -198,6 +164,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file to rename")),
       name: z.string().describe("New file name"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -218,6 +185,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to restore")),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -238,6 +206,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       organization: orgParam,
       folderId: z.string().uuid().optional().describe("Folder UUID (omit for root children)"),
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -288,6 +257,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       name: z.string().describe("Folder name"),
       parentId: z.string().uuid().optional().describe("Parent folder UUID (omit for root)"),
     },
+    Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -313,6 +283,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       organization: orgParam,
       folderId: z.string().uuid().describe(uuidDesc("folder to delete")),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -333,6 +304,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       action: z.enum(["get", "set", "clear"]).default("get").describe("Action: get/set/clear approvals"),
       templateId: z.string().uuid().optional().describe("Approval template UUID (required for 'set')"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -360,12 +332,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
         if (data.items && data.items.length > 0) {
           lines.push("");
           for (const item of data.items) {
-            const users = item.users
-              ?.map((u) => {
-                const name = [u.identity?.firstName, u.identity?.lastName].filter(Boolean).join(" ");
-                return name || u.id;
-              })
-              .join(", ");
+            const users = item.users?.map(fmtUserName).join(", ");
             lines.push(`- **Step ${item.order ?? "?"}** ${item.status ?? "unknown"} — ${users ?? "no users"}`);
           }
         }
@@ -387,6 +354,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       action: z.enum(["get", "set"]).default("get").describe("Action: get or set rights"),
       rights: z.string().optional().describe("JSON string of rights array (required for 'set')"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -397,13 +365,9 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
           if (!params.rights) {
             return errorResult("rights JSON string is required when action is 'set'.");
           }
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(params.rights);
-          } catch {
-            return errorResult("Invalid JSON in 'rights' parameter.");
-          }
-          await client.put(path, parsed);
+          const parsed = parseJsonParam(params.rights, "rights");
+          if (!parsed.ok) return parsed.error;
+          await client.put(path, parsed.value);
           return textResult(`Rights updated on ${params.type} \`${params.id}\`.`);
         }
 

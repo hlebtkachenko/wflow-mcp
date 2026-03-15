@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 export function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
@@ -24,7 +25,22 @@ export function fmtUserName(user?: { identity?: { firstName?: string; lastName?:
   return [user.identity.firstName, user.identity.lastName].filter(Boolean).join(" ") || "unknown";
 }
 
+export function parseJsonParam(json: string, paramName: string): { ok: true; value: unknown } | { ok: false; error: ReturnType<typeof errorResult> } {
+  try {
+    return { ok: true, value: JSON.parse(json) };
+  } catch {
+    return { ok: false, error: errorResult(`Invalid JSON in '${paramName}' parameter.`) };
+  }
+}
+
 export const orgParam = z
   .string()
   .optional()
   .describe("Organization workspace name (uses default if omitted)");
+
+export const Annotations = {
+  read: { readOnlyHint: true } satisfies ToolAnnotations,
+  write: { readOnlyHint: false, idempotentHint: true } satisfies ToolAnnotations,
+  create: { readOnlyHint: false } satisfies ToolAnnotations,
+  destroy: { readOnlyHint: false, destructiveHint: true } satisfies ToolAnnotations,
+};

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, orgParam } from "../utils.js";
+import { textResult, errorResult, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type { PropertyDefinition, Property } from "../types.js";
 
 function fmtDefinition(d: PropertyDefinition): string {
@@ -23,6 +23,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -52,6 +53,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       show: z.boolean().optional().describe("Whether to show the property"),
       editable: z.boolean().optional().describe("Whether the property is editable"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -75,6 +77,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       organization: orgParam,
       definitionId: z.string().describe("Property definition ID"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -95,6 +98,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
       properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -111,13 +115,9 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
         if (!params.properties) {
           return errorResult("properties parameter is required for set action.");
         }
-        let body: unknown;
-        try {
-          body = JSON.parse(params.properties);
-        } catch {
-          return errorResult("Invalid JSON in properties parameter.");
-        }
-        await client.put(path, body);
+        const parsed = parseJsonParam(params.properties, "properties");
+        if (!parsed.ok) return parsed.error;
+        await client.put(path, parsed.value);
         return textResult(`Custom properties updated on document **${params.documentId}**.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -133,6 +133,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       documentId: z.string().uuid().describe("Document ID"),
       propertyId: z.string().describe("Property ID to delete"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -154,6 +155,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     {
       organization: orgParam,
     },
+    Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -183,6 +185,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       show: z.boolean().optional().describe("Whether to show the property"),
       editable: z.boolean().optional().describe("Whether the property is editable"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -206,6 +209,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       organization: orgParam,
       definitionId: z.string().describe("Property definition ID"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -226,6 +230,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
       properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
     },
+    Annotations.write,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -242,13 +247,9 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
         if (!params.properties) {
           return errorResult("properties parameter is required for set action.");
         }
-        let body: unknown;
-        try {
-          body = JSON.parse(params.properties);
-        } catch {
-          return errorResult("Invalid JSON in properties parameter.");
-        }
-        await client.put(path, body);
+        const parsed = parseJsonParam(params.properties, "properties");
+        if (!parsed.ok) return parsed.error;
+        await client.put(path, parsed.value);
         return textResult(`Custom properties updated on file **${params.fileId}**.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -264,6 +265,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       fileId: z.string().uuid().describe("Storage file ID"),
       propertyId: z.string().describe("Property ID to delete"),
     },
+    Annotations.destroy,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

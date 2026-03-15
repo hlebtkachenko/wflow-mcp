@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, orgParam } from "../utils.js";
+import { textResult, errorResult, orgParam, parseJsonParam, Annotations } from "../utils.js";
 
 export function registerApiTools(server: McpServer, client: WflowClient) {
   server.tool(
@@ -21,15 +21,14 @@ export function registerApiTools(server: McpServer, client: WflowClient) {
         .optional()
         .describe("Request body as JSON string (parsed before sending)"),
     },
+    { readOnlyHint: false, openWorldHint: true },
     async (params) => {
       try {
         let parsedBody: unknown;
         if (params.body) {
-          try {
-            parsedBody = JSON.parse(params.body);
-          } catch {
-            return errorResult(`Invalid JSON body: ${params.body.slice(0, 200)}`);
-          }
+          const parsed = parseJsonParam(params.body, "body");
+          if (!parsed.ok) return parsed.error;
+          parsedBody = parsed.value;
         }
         const result = await client.request(params.method, params.path, parsedBody);
         if (result === undefined) return textResult("Done (no content).");

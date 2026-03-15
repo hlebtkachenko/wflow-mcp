@@ -219,9 +219,6 @@ export class WflowClient {
           await sleep(1000 * 2 ** attempt);
           continue;
         }
-        if (attempt >= this.maxRetries) break;
-        const msg = (err as Error).message || "";
-        if (msg.includes("429") || msg.includes("401")) continue;
         break;
       }
     }
