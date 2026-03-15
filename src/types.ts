@@ -147,14 +147,6 @@ export interface ApprovalStatus {
   name?: string;
 }
 
-export interface Approval {
-  id?: string;
-  status?: string;
-  user?: UserBase;
-  created?: string;
-  note?: string;
-}
-
 export interface ApprovalProcess {
   status?: string;
   items?: ApprovalProcessItem[];
@@ -185,26 +177,6 @@ export interface Register {
   code?: string;
   description?: string;
   isValid?: boolean;
-}
-
-export interface Partner {
-  id?: string;
-  externalId?: string;
-  ic?: string;
-  vat?: string;
-  name: string;
-  address?: string;
-  localVAT?: string;
-  note?: string;
-  accounts?: PartnerAccount[];
-}
-
-export interface PartnerAccount {
-  accountNo?: string;
-  bankCode?: string;
-  iban?: string;
-  bic?: string;
-  currency?: string;
 }
 
 export interface PropertyDefinition {
@@ -287,9 +259,3 @@ export interface DocumentType {
   invoiceType?: string;
 }
 
-export interface ProblemDetails {
-  type?: string;
-  title?: string;
-  status?: number;
-  detail?: string;
-}

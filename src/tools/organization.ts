@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate } from "../utils.js";
+import { textResult, errorResult, fmtDate, orgParam } from "../utils.js";
 import type {
   OrganizationEntity,
   UserFull,
@@ -19,7 +19,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     "wf_organization",
     "Get organization details",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -63,7 +63,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     "wf_account",
     "Get current account information",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -94,7 +94,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     "wf_users",
     "List users in the organization",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -114,7 +114,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     "wf_user_info",
     "Get user details by ID",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       userId: z.string().uuid().describe("User ID"),
     },
     async (params) => {
@@ -140,7 +140,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     "wf_user_save",
     "Create or update a user",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       userId: z.string().uuid().optional().describe("User ID (for update)"),
       email: z.string().optional().describe("User email"),
       firstName: z.string().optional().describe("First name"),
@@ -170,7 +170,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     "wf_user_delete",
     "Remove a user from the organization (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       userId: z.string().uuid().describe("User ID to remove"),
     },
     async (params) => {
@@ -196,7 +196,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_roles",
     "List all roles in the organization",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -219,7 +219,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_role_create",
     "Create a new role",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Role name"),
       description: z.string().optional().describe("Role description"),
     },
@@ -240,7 +240,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_role_update",
     "Update an existing role",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       roleId: z.string().uuid().describe("Role ID"),
       name: z.string().optional().describe("New role name"),
       description: z.string().optional().describe("New role description"),
@@ -263,7 +263,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_role_delete",
     "Delete a role (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       roleId: z.string().uuid().describe("Role ID to delete"),
     },
     async (params) => {
@@ -283,7 +283,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_teams",
     "List all teams in the organization",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -307,7 +307,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_team_create",
     "Create a new team",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Team name"),
       description: z.string().optional().describe("Team description"),
     },
@@ -328,7 +328,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_team_update",
     "Update an existing team",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       teamId: z.string().uuid().describe("Team ID"),
       name: z.string().optional().describe("New team name"),
       description: z.string().optional().describe("New team description"),
@@ -351,7 +351,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "wf_team_delete",
     "Delete a team (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       teamId: z.string().uuid().describe("Team ID to delete"),
     },
     async (params) => {

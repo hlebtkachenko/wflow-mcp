@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
@@ -16,3 +18,13 @@ export function fmtAmount(amount?: number | null, currency?: string | null): str
   const formatted = amount.toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return currency ? `${formatted} ${currency}` : formatted;
 }
+
+export function fmtUserName(user?: { identity?: { firstName?: string; lastName?: string } }): string {
+  if (!user?.identity) return "unknown";
+  return [user.identity.firstName, user.identity.lastName].filter(Boolean).join(" ") || "unknown";
+}
+
+export const orgParam = z
+  .string()
+  .optional()
+  .describe("Organization workspace name (uses default if omitted)");

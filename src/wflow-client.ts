@@ -48,6 +48,7 @@ export class WflowClient {
   private accessToken: string | null = null;
   private tokenExpiresAt = 0;
   private maxRetries: number;
+  private pendingAuth: Promise<string> | null = null;
 
   constructor(config: WflowConfig) {
     this.clientId = config.clientId;
@@ -62,6 +63,17 @@ export class WflowClient {
       return this.accessToken;
     }
 
+    if (this.pendingAuth) return this.pendingAuth;
+
+    this.pendingAuth = this.fetchToken();
+    try {
+      return await this.pendingAuth;
+    } finally {
+      this.pendingAuth = null;
+    }
+  }
+
+  private async fetchToken(): Promise<string> {
     const body = new URLSearchParams({
       grant_type: "client_credentials",
       client_id: this.clientId,
@@ -95,6 +107,11 @@ export class WflowClient {
     if (!resolved) {
       throw new Error(
         "Organization not specified. Set WFLOW_ORGANIZATION env var or pass 'organization' parameter.",
+      );
+    }
+    if (!/^[\w-]+$/.test(resolved)) {
+      throw new Error(
+        `Invalid organization name "${resolved}". Only alphanumeric, hyphens, and underscores are allowed.`,
       );
     }
     return resolved;

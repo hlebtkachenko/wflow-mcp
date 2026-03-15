@@ -1,13 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate } from "../utils.js";
+import { textResult, errorResult, fmtDate, orgParam } from "../utils.js";
 import type { DocumentFile } from "../types.js";
-
-const orgParam = z
-  .string()
-  .optional()
-  .describe("Organization workspace name (uses default if omitted)");
 
 export function registerDocumentFileTools(server: McpServer, client: WflowClient): void {
   server.tool(
@@ -56,20 +51,13 @@ export function registerDocumentFileTools(server: McpServer, client: WflowClient
           return errorResult("Provide either fileId or set main=true.");
         }
 
-        let path: string;
-        if (params.main) {
-          path = `/api/${org}/documents/${params.documentId}/files/main/download`;
-        } else {
-          path = `/api/${org}/documents/files/${params.fileId}/download`;
-        }
+        const path = params.main
+          ? `/api/${org}/documents/${params.documentId}/files/main/download`
+          : `/api/${org}/documents/files/${params.fileId}/download`;
 
-        const result = await client.get<Record<string, unknown>>(path);
-
-        return textResult(
-          `# File download\n` +
-          `Binary file content was returned from the API. ` +
-          `Use the wflow web UI to download the actual file.\n\n` +
-          `\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
+        return errorResult(
+          `Binary file download from ${path} is not supported via MCP text protocol. ` +
+          "Use the wflow web UI or a direct API call to download the actual file.",
         );
       } catch (err) {
         return errorResult((err as Error).message);
@@ -87,11 +75,9 @@ export function registerDocumentFileTools(server: McpServer, client: WflowClient
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.put(`/api/${org}/documents/${params.documentId}/files/upload`);
-        return textResult(
-          `File upload endpoint called for document ${params.documentId}.\n\n` +
-          `Note: binary file upload requires multipart form data which is not supported via MCP text tools. ` +
-          `Use the wflow web UI or a direct API call for actual file uploads.`,
+        return errorResult(
+          `Binary file upload to /api/${org}/documents/${params.documentId}/files/upload is not supported via MCP text protocol. ` +
+          "Use the wflow web UI or a direct API call with multipart/form-data.",
         );
       } catch (err) {
         return errorResult((err as Error).message);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult } from "../utils.js";
+import { textResult, errorResult, orgParam } from "../utils.js";
 import type { Register } from "../types.js";
 
 const REGISTER_TYPES = [
@@ -38,7 +38,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
     "wf_registers",
     "List register items by type (partners, employees, chart of accounts, etc.)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       registerType: registerTypeSchema,
       query: z.string().optional().describe("Filter query string"),
     },
@@ -80,7 +80,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
     "wf_register_save",
     "Create or replace register items (full replacement)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of register items array"),
     },
@@ -113,7 +113,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
     "wf_register_update",
     "Partially update register items",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of partial register item updates"),
     },

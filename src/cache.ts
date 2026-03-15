@@ -1,3 +1,5 @@
+const MAX_ENTRIES = 500;
+
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -27,6 +29,10 @@ export class ResponseCache {
 
   set<T>(key: string, data: T): void {
     if (!this.enabled) return;
+    if (this.store.size >= MAX_ENTRIES) {
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
     this.store.set(key, { data, expiresAt: Date.now() + this.ttlMs });
   }
 

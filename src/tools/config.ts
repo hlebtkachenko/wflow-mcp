@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult } from "../utils.js";
+import { textResult, errorResult, orgParam } from "../utils.js";
 import type {
   DocumentType,
   ApprovalsTemplate,
@@ -17,7 +17,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     "wf_document_types",
     "List available document types",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -42,7 +42,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     "wf_document_type_save",
     "Create or update a document type",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Document type name"),
       kind: z.string().optional().describe("Document kind"),
       invoiceType: z.string().optional().describe("Invoice type"),
@@ -65,7 +65,7 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     "wf_document_type_delete",
     "Delete a document type (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       typeId: z.string().uuid().describe("Document type ID"),
     },
     async (params) => {
@@ -89,7 +89,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "wf_approval_templates",
     "List approval templates",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -112,7 +112,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "wf_approval_template_info",
     "Get approval template details",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       templateId: z.string().uuid().describe("Approval template ID"),
     },
     async (params) => {
@@ -134,7 +134,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "wf_approval_template_save",
     "Create or update an approval template",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Template name"),
       teams: z.string().optional().describe("Team configuration as JSON string"),
     },
@@ -142,7 +142,13 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { name: params.name };
-        if (params.teams) body.teams = JSON.parse(params.teams);
+        if (params.teams) {
+          try {
+            body.teams = JSON.parse(params.teams);
+          } catch {
+            return errorResult("Invalid JSON in 'teams' parameter.");
+          }
+        }
         const result = await client.put<ApprovalsTemplate>(`/api/${org}/approvalstemplates`, body);
         return textResult(`Approval template saved. ID: ${result?.id ?? "—"}`);
       } catch (err) {
@@ -155,7 +161,7 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "wf_approval_template_delete",
     "Delete an approval template (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       templateId: z.string().uuid().describe("Approval template ID"),
     },
     async (params) => {
@@ -179,7 +185,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
     "wf_webhooks",
     "List webhook registrations",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -202,7 +208,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
     "wf_webhook_save",
     "Create or update a webhook registration",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       webHookUri: z.string().url().describe("Webhook callback URL"),
       description: z.string().optional().describe("Webhook description"),
       actions: z.string().optional().describe("JSON string array of action names"),
@@ -213,7 +219,12 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
         const body: Record<string, unknown> = { webHookUri: params.webHookUri };
         if (params.description) body.description = params.description;
         if (params.actions) {
-          const parsed = JSON.parse(params.actions) as string[];
+          let parsed: string[];
+          try {
+            parsed = JSON.parse(params.actions) as string[];
+          } catch {
+            return errorResult("Invalid JSON in 'actions' parameter.");
+          }
           body.actions = parsed.map((a) => ({ action: a }));
         }
         const result = await client.put<WebHookRegistration>(`/api/${org}/webhookregistrations`, body);
@@ -228,7 +239,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
     "wf_webhook_delete",
     "Delete a webhook registration",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       registrationId: z.string().uuid().describe("Webhook registration ID"),
     },
     async (params) => {
@@ -252,7 +263,7 @@ export function registerIntegrationTools(server: McpServer, client: WflowClient)
     "wf_integration_allow",
     "Allow integration access for the organization",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -269,7 +280,7 @@ export function registerIntegrationTools(server: McpServer, client: WflowClient)
     "wf_integration_api_client",
     "Create a new API client for integration",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {

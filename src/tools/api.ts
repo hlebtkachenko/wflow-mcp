@@ -1,14 +1,14 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult } from "../utils.js";
+import { textResult, errorResult, orgParam } from "../utils.js";
 
 export function registerApiTools(server: McpServer, client: WflowClient) {
   server.tool(
     "wf_api_raw",
     "Call any wflow API endpoint directly",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       method: z
         .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
         .default("GET")

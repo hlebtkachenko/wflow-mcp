@@ -1,17 +1,12 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtAmount } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtAmount, orgParam } from "../utils.js";
 import type {
   DocumentBaseCollection,
   Document,
   DocumentEvent,
 } from "../types.js";
-
-const orgParam = z
-  .string()
-  .optional()
-  .describe("Organization workspace name (uses default if omitted)");
 
 export function registerDocumentTools(server: McpServer, client: WflowClient): void {
   server.tool(
@@ -252,7 +247,12 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const docBody = JSON.parse(params.document) as Record<string, unknown>;
+        let docBody: Record<string, unknown>;
+        try {
+          docBody = JSON.parse(params.document) as Record<string, unknown>;
+        } catch {
+          return errorResult("Invalid JSON in 'document' parameter.");
+        }
         const result = await client.post<{ id?: string }>(
           `/api/${org}/documents/withfiles`,
           docBody,
@@ -280,7 +280,12 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 
         if (params.action === "set") {
           if (!params.metadata) return errorResult("metadata is required for set action.");
-          const body = JSON.parse(params.metadata) as unknown;
+          let body: unknown;
+          try {
+            body = JSON.parse(params.metadata);
+          } catch {
+            return errorResult("Invalid JSON in 'metadata' parameter.");
+          }
           await client.put(path, body);
           return textResult(`Metadata updated for document ${params.documentId}.`);
         }
@@ -363,12 +368,17 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const body = params.filter
-          ? (JSON.parse(params.filter) as unknown)
-          : undefined;
+        let body: unknown;
+        if (params.filter) {
+          try {
+            body = JSON.parse(params.filter);
+          } catch {
+            return errorResult("Invalid JSON in 'filter' parameter.");
+          }
+        }
 
         const result = await client.post<unknown>(
-          `/api/${org}/documents/export/${params.format}`,
+          `/api/${org}/documents/export/${encodeURIComponent(params.format)}`,
           body,
         );
 
@@ -431,15 +441,16 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
       try {
         const org = client.resolveOrg(params.organization);
 
+        const safeTaskType = encodeURIComponent(params.taskType);
         if (params.action === "processed") {
           await client.put(
-            `/api/${org}/documents/${params.documentId}/task/${params.taskType}/processed`,
+            `/api/${org}/documents/${params.documentId}/task/${safeTaskType}/processed`,
           );
           return textResult(`Task '${params.taskType}' marked as processed for document ${params.documentId}.`);
         }
 
         await client.post(
-          `/api/${org}/documents/${params.documentId}/task/${params.taskType}`,
+          `/api/${org}/documents/${params.documentId}/task/${safeTaskType}`,
         );
         return textResult(`Task '${params.taskType}' created for document ${params.documentId}.`);
       } catch (err) {

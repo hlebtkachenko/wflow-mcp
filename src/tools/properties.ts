@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult } from "../utils.js";
+import { textResult, errorResult, orgParam } from "../utils.js";
 import type { PropertyDefinition, Property } from "../types.js";
 
 function fmtDefinition(d: PropertyDefinition): string {
@@ -21,7 +21,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "wf_doc_property_definitions",
     "List custom property definitions for documents",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -45,7 +45,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "wf_doc_property_definition_save",
     "Create or update a document property definition",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Property name"),
       type: z.string().describe("Property type (e.g. text, number, date, select)"),
       order: z.number().int().optional().describe("Display order"),
@@ -72,13 +72,13 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "wf_doc_property_definition_delete",
     "Delete a document property definition",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       definitionId: z.string().describe("Property definition ID"),
     },
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.del(`/api/${org}/documents/properties/definition/${params.definitionId}`);
+        await client.del(`/api/${org}/documents/properties/definition/${encodeURIComponent(params.definitionId)}`);
         return textResult(`Document property definition **${params.definitionId}** deleted.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -90,7 +90,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "wf_document_properties",
     "Get or set custom properties on a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
       properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
@@ -129,7 +129,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "wf_document_property_delete",
     "Delete a custom property from a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       propertyId: z.string().describe("Property ID to delete"),
     },
@@ -137,7 +137,7 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       try {
         const org = client.resolveOrg(params.organization);
         await client.del(
-          `/api/${org}/documents/${params.documentId}/properties/${params.propertyId}`,
+          `/api/${org}/documents/${params.documentId}/properties/${encodeURIComponent(params.propertyId)}`,
         );
         return textResult(`Property **${params.propertyId}** deleted from document **${params.documentId}**.`);
       } catch (err) {
@@ -152,7 +152,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "wf_file_property_definitions",
     "List custom property definitions for storage files",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -176,7 +176,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "wf_file_property_definition_save",
     "Create or update a file property definition",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Property name"),
       type: z.string().describe("Property type (e.g. text, number, date, select)"),
       order: z.number().int().optional().describe("Display order"),
@@ -203,13 +203,13 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "wf_file_property_definition_delete",
     "Delete a file property definition",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       definitionId: z.string().describe("Property definition ID"),
     },
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.del(`/api/${org}/storage/files/properties/definition/${params.definitionId}`);
+        await client.del(`/api/${org}/storage/files/properties/definition/${encodeURIComponent(params.definitionId)}`);
         return textResult(`File property definition **${params.definitionId}** deleted.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -221,7 +221,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "wf_file_properties",
     "Get or set custom properties on a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe("Storage file ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
       properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
@@ -260,7 +260,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "wf_file_property_delete",
     "Delete a custom property from a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe("Storage file ID"),
       propertyId: z.string().describe("Property ID to delete"),
     },
@@ -268,7 +268,7 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       try {
         const org = client.resolveOrg(params.organization);
         await client.del(
-          `/api/${org}/storage/files/${params.fileId}/properties/${params.propertyId}`,
+          `/api/${org}/storage/files/${params.fileId}/properties/${encodeURIComponent(params.propertyId)}`,
         );
         return textResult(`Property **${params.propertyId}** deleted from file **${params.fileId}**.`);
       } catch (err) {

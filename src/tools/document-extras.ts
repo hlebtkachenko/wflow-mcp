@@ -1,20 +1,15 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtUserName, orgParam } from "../utils.js";
 import type { ApprovalProcess, Comment } from "../types.js";
-
-function fmtUserName(user?: { identity?: { firstName?: string; lastName?: string } }): string {
-  if (!user?.identity) return "unknown";
-  return [user.identity.firstName, user.identity.lastName].filter(Boolean).join(" ") || "unknown";
-}
 
 export function registerDocumentApprovalTools(server: McpServer, client: WflowClient): void {
   server.tool(
     "wf_document_approvals",
     "Get approval status for a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
     },
     async (params) => {
@@ -47,7 +42,7 @@ export function registerDocumentApprovalTools(server: McpServer, client: WflowCl
     "wf_document_approval_set",
     "Set approval template on a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       templateId: z.string().uuid().describe("Approval template ID to apply"),
     },
@@ -68,7 +63,7 @@ export function registerDocumentApprovalTools(server: McpServer, client: WflowCl
     "wf_document_approval_clear",
     "Remove approvals from a document (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
     },
     async (params) => {
@@ -88,7 +83,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_comments",
     "Get comments on a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
     },
     async (params) => {
@@ -117,7 +112,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_links",
     "Get, add, or remove linked documents",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["list", "add", "remove"]).default("list").describe("Action to perform"),
       linkedDocumentId: z.string().uuid().optional().describe("Linked document ID (required for add/remove)"),
@@ -158,7 +153,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_payments",
     "Update payment information on a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       payments: z.string().describe("JSON string of payment data"),
     },
@@ -183,7 +178,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_rights",
     "Get or set access rights for a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
       rights: z.string().optional().describe("JSON string of rights data (required for set)"),
@@ -219,7 +214,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_tags",
     "List all organization tags or tags on a specific document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().optional().describe("Document ID (omit to get all org tags)"),
     },
     async (params) => {
@@ -248,7 +243,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     "wf_document_tag_set",
     "Add or remove a tag on a document",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       tag: z.string().describe("Tag name"),
       action: z.enum(["add", "remove"]).default("add").describe("Add or remove the tag"),

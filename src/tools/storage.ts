@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtUserName, orgParam } from "../utils.js";
 import type {
   StorageFile,
   StorageFileCollection,
@@ -16,7 +16,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_files",
     "List storage files with filtering",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       query: z.string().optional().describe("Search query to filter files"),
       page: z.number().int().default(1).describe("Page number"),
       pageSize: z.number().int().default(20).describe("Items per page"),
@@ -62,7 +62,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file",
     "Get storage file details by ID",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("storage file")),
     },
     async (params) => {
@@ -97,7 +97,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_upload",
     "Upload a file to storage",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
     },
     async (params) => {
       try {
@@ -116,7 +116,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_download",
     "Download a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to download")),
     },
     async (params) => {
@@ -136,7 +136,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_delete",
     "Delete a storage file (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to delete")),
     },
     async (params) => {
@@ -154,7 +154,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_lock",
     "Lock or unlock a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file")),
       lock: z.boolean().describe("true to lock, false to unlock"),
     },
@@ -173,7 +173,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_move",
     "Move a storage file to another folder",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to move")),
       folderId: z.string().uuid().describe(uuidDesc("target folder")),
     },
@@ -194,7 +194,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_rename",
     "Rename a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to rename")),
       name: z.string().describe("New file name"),
     },
@@ -215,7 +215,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     "wf_storage_file_restore",
     "Restore a deleted storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to restore")),
     },
     async (params) => {
@@ -235,7 +235,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
     "wf_storage_folders",
     "List folder children or get folder by ID",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       folderId: z.string().uuid().optional().describe("Folder UUID (omit for root children)"),
     },
     async (params) => {
@@ -284,7 +284,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
     "wf_storage_folder_create",
     "Create a new storage folder",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       name: z.string().describe("Folder name"),
       parentId: z.string().uuid().optional().describe("Parent folder UUID (omit for root)"),
     },
@@ -310,7 +310,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
     "wf_storage_folder_delete",
     "Delete a storage folder (careful!)",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       folderId: z.string().uuid().describe(uuidDesc("folder to delete")),
     },
     async (params) => {
@@ -328,7 +328,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
     "wf_storage_file_approvals",
     "Get, set, or clear approvals on a storage file",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("storage file")),
       action: z.enum(["get", "set", "clear"]).default("get").describe("Action: get/set/clear approvals"),
       templateId: z.string().uuid().optional().describe("Approval template UUID (required for 'set')"),
@@ -381,7 +381,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
     "wf_storage_rights",
     "Get or set access rights for a storage file or folder",
     {
-      organization: z.string().optional().describe("Organization workspace name (uses default if omitted)"),
+      organization: orgParam,
       type: z.enum(["file", "folder"]).describe("Target type: file or folder"),
       id: z.string().uuid().describe("UUID of the file or folder"),
       action: z.enum(["get", "set"]).default("get").describe("Action: get or set rights"),
