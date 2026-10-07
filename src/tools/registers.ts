@@ -85,7 +85,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of register items array"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -114,7 +114,7 @@ export function registerRegisterTools(server: McpServer, client: WflowClient): v
       registerType: registerTypeSchema,
       items: z.string().describe("JSON string of partial register item updates"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtUserName, orgParam, parseJsonParam, Annotations } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtUserName, orgParam, parseJsonParam, Annotations, idOf } from "../utils.js";
 import type {
   StorageFile,
   StorageFileCollection,
@@ -122,7 +122,7 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file")),
       lock: z.boolean().describe("true to lock, false to unlock"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -142,11 +142,11 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file to move")),
       folderId: z.string().uuid().describe(uuidDesc("target folder")),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.put(`/api/${org}/storage/files/${params.fileId}/move`, {
+        await client.put(`/api/${org}/storage/files/${params.fileId}/move`, undefined, {
           folderId: params.folderId,
         });
         return textResult(`File \`${params.fileId}\` moved to folder \`${params.folderId}\`.`);
@@ -164,11 +164,11 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
       fileId: z.string().uuid().describe(uuidDesc("file to rename")),
       name: z.string().describe("New file name"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.put(`/api/${org}/storage/files/${params.fileId}/rename`, {
+        await client.put(`/api/${org}/storage/files/${params.fileId}/rename`, undefined, {
           name: params.name,
         });
         return textResult(`File \`${params.fileId}\` renamed to **${params.name}**.`);
@@ -184,12 +184,17 @@ export function registerStorageFileTools(server: McpServer, client: WflowClient)
     {
       organization: orgParam,
       fileId: z.string().uuid().describe(uuidDesc("file to restore")),
+      folderId: z.string().uuid().optional().describe("Folder to restore into (default: original folder)"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.put(`/api/${org}/storage/files/${params.fileId}/restore`);
+        await client.put(
+          `/api/${org}/storage/files/${params.fileId}/restore`,
+          undefined,
+          params.folderId ? { folderId: params.folderId } : undefined,
+        );
         return textResult(`File \`${params.fileId}\` restored.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -264,10 +269,10 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
         const body: Record<string, string> = { name: params.name };
         if (params.parentId) body.parentId = params.parentId;
 
-        const folder = await client.put<StorageFolder>(`/api/${org}/storage/folders`, body);
+        const id = idOf(await client.put<unknown>(`/api/${org}/storage/folders`, body));
 
-        if (folder?.id) {
-          return textResult(`Folder **${params.name}** created (ID: \`${folder.id}\`).`);
+        if (id) {
+          return textResult(`Folder **${params.name}** created (ID: \`${id}\`).`);
         }
         return textResult(`Folder **${params.name}** created.`);
       } catch (err) {
@@ -304,7 +309,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       action: z.enum(["get", "set", "clear"]).default("get").describe("Action: get/set/clear approvals"),
       templateId: z.string().uuid().optional().describe("Approval template UUID (required for 'set')"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -352,9 +357,12 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
       type: z.enum(["file", "folder"]).describe("Target type: file or folder"),
       id: z.string().uuid().describe("UUID of the file or folder"),
       action: z.enum(["get", "set"]).default("get").describe("Action: get or set rights"),
-      rights: z.string().optional().describe("JSON string of rights array (required for 'set')"),
+      rights: z
+        .string()
+        .optional()
+        .describe('Teams with access as a JSON array of {"id": "<team UUID>"} (required for \'set\'; replaces current rights)'),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

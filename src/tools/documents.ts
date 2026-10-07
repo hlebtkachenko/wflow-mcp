@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtAmount, orgParam, parseJsonParam, Annotations } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtAmount, orgParam, parseJsonParam, Annotations, savedText, identityName } from "../utils.js";
+import { INVOICE_TYPES } from "./config.js";
 import type {
   DocumentBaseCollection,
   Document,
@@ -180,7 +181,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       ignoreLock: z.boolean().optional().describe("Ignore document lock"),
       setAsFilled: z.boolean().optional().describe("Mark as filled after save"),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -208,14 +209,14 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
         if (params.partnerAddress !== undefined) body.partnerAddress = params.partnerAddress;
         if (params.description !== undefined) body.description = params.description;
 
-        const result = await client.put<{ id?: string }>(
+        const result = await client.put<unknown>(
           `/api/${org}/documents`,
           body,
           Object.keys(q).length > 0 ? q : undefined,
         );
 
         const verb = params.id ? "updated" : "created";
-        return textResult(`Document ${verb}. ID: ${result?.id ?? "—"}`);
+        return textResult(savedText(`Document ${verb}.`, result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -243,23 +244,40 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 
   server.tool(
     "wf_document_with_files",
-    "Create a document with attached files",
+    "Create a document from uploaded files (PDF, ISDOC, images); wflow extracts the data. " +
+      "Pass each file's content base64-encoded.",
     {
       organization: orgParam,
-      document: z.string().describe("JSON string of document data"),
+      files: z
+        .array(z.object({
+          fileName: z.string().min(1).describe("File name with extension (e.g. invoice.pdf)"),
+          contentBase64: z.string().min(1).describe("File content, base64-encoded"),
+          contentType: z.string().optional().describe("MIME type (default application/octet-stream)"),
+        }))
+        .min(1)
+        .describe("Files to upload as the document's attachments"),
+      typeId: z.string().uuid().optional().describe("Document type ID"),
+      invoiceType: z.enum(INVOICE_TYPES).optional().describe("Invoice type"),
     },
     Annotations.create,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const parsed = parseJsonParam(params.document, "document");
-        if (!parsed.ok) return parsed.error;
-        const docBody = parsed.value as Record<string, unknown>;
-        const result = await client.post<{ id?: string }>(
-          `/api/${org}/documents/withfiles`,
-          docBody,
-        );
-        return textResult(`Document created with files. ID: ${result?.id ?? "—"}`);
+        const form = new FormData();
+        for (const f of params.files) {
+          const bytes = Buffer.from(f.contentBase64, "base64");
+          if (!bytes.length) return errorResult(`File '${f.fileName}' has empty or invalid base64 content.`);
+          form.append(
+            "uploadedFiles",
+            new Blob([bytes], { type: f.contentType ?? "application/octet-stream" }),
+            f.fileName,
+          );
+        }
+        const q: Record<string, string> = {};
+        if (params.typeId) q.typeId = params.typeId;
+        if (params.invoiceType) q.invoiceType = params.invoiceType;
+        const result = await client.postForm<unknown>(`/api/${org}/documents/withfiles`, form, q);
+        return textResult(savedText(`Document created from ${params.files.length} file(s).`, result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -273,9 +291,9 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["get", "set"]).default("get").describe("Get or set metadata"),
-      metadata: z.string().optional().describe("JSON string of metadata (for set action)"),
+      metadata: z.string().optional().describe("Metadata text to store (for set action); sent as-is, typically a JSON document serialized to a string"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -283,18 +301,14 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 
         if (params.action === "set") {
           if (!params.metadata) return errorResult("metadata is required for set action.");
-          const parsed = parseJsonParam(params.metadata, "metadata");
-          if (!parsed.ok) return parsed.error;
-          await client.put(path, parsed.value);
+          // The endpoint's body schema is a JSON string, not an object.
+          await client.put(path, params.metadata);
           return textResult(`Metadata updated for document ${params.documentId}.`);
         }
 
-        const result = await client.get<Record<string, unknown>>(path);
-        const lines = [`# Metadata for ${params.documentId}`, ""];
-        for (const [key, val] of Object.entries(result)) {
-          lines.push(`- **${key}** ${String(val)}`);
-        }
-        return textResult(lines.join("\n"));
+        const result = await client.get<unknown>(path);
+        if (result === undefined) return textResult(`No metadata stored for ${params.documentId}.`);
+        return textResult(`# Metadata for ${params.documentId}\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``);
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -309,7 +323,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
       documentId: z.string().uuid().describe("Document ID"),
       lock: z.boolean().describe("true to lock, false to unlock"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -343,12 +357,10 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 
         const lines = [`# Events for ${params.documentId}`, ""];
         for (const ev of events) {
-          const who = ev.user?.identity
-            ? `${ev.user.identity.firstName ?? ""} ${ev.user.identity.lastName ?? ""}`.trim()
-            : "system";
+          const who = ev.identity ? identityName(ev.identity) : "system";
           lines.push(
-            `- **${fmtDate(ev.created)}** [${ev.eventType ?? "?"}] by ${who}` +
-            (ev.description ? ` — ${ev.description}` : ""),
+            `- **${fmtDate(ev.created)}** [${ev.type ?? "?"}] by ${who}` +
+            (ev.info ? ` — ${ev.info}` : ""),
           );
         }
         return textResult(lines.join("\n"));
@@ -364,9 +376,18 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
     {
       organization: orgParam,
       format: z.string().describe("Export format (e.g. xml, csv)"),
-      filter: z.string().optional().describe("JSON string of filter body"),
+      filter: z
+        .string()
+        .optional()
+        .describe(
+          'Filter as a JSON object (StructuredFilter): {"search": string, "sort": string, ' +
+          '"filters": [{"column": string, "filters": [...]}], "propertyFilters": [{"key": string, "operator": string, "value": any}], ' +
+          '"validationType": [string]}. All fields optional.',
+        ),
+      parameters: z.string().optional().describe("Format-specific export parameters (passed as the 'parameters' query value)"),
+      markAsExported: z.boolean().optional().describe("Mark the exported documents as exported (default false)"),
     },
-    Annotations.read,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -377,9 +398,13 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
           body = parsed.value;
         }
 
+        const q: Record<string, string> = {};
+        if (params.parameters) q.parameters = params.parameters;
+        if (params.markAsExported != null) q.markAsExported = String(params.markAsExported);
         const result = await client.post<unknown>(
           `/api/${org}/documents/export/${encodeURIComponent(params.format)}`,
           body,
+          q,
         );
 
         return textResult(
@@ -395,10 +420,11 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
 export function registerDocumentQueueTools(server: McpServer, client: WflowClient): void {
   server.tool(
     "wf_documents_queue",
-    "List documents ready for export or extraction",
+    "List IDs of documents ready for export or extraction (use wf_document for details)",
     {
       organization: orgParam,
       queue: z.enum(["export", "extract"]).describe("Which queue to check"),
+      typeId: z.string().uuid().optional().describe("Export queue only: limit to this document type"),
     },
     Annotations.read,
     async (params) => {
@@ -408,20 +434,14 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
           params.queue === "export"
             ? `/api/${org}/documents/toexport`
             : `/api/${org}/documents/toextract`;
+        const q: Record<string, string> = {};
+        if (params.queue === "export" && params.typeId) q.typeId = params.typeId;
 
-        const items = await client.get<DocumentBaseCollection>(endpoint);
-        const docs = items.items ?? [];
+        const ids = await client.get<string[]>(endpoint, q);
+        if (!ids?.length) return textResult(`No documents in ${params.queue} queue.`);
 
-        if (!docs.length) return textResult(`No documents in ${params.queue} queue.`);
-
-        const lines = [`# ${params.queue} queue (${docs.length} documents)`, ""];
-        for (const doc of docs) {
-          lines.push(
-            `- **${doc.number ?? "—"}** ${doc.partnerName ?? "?"}: ` +
-            `${fmtAmount(doc.totalAmount, doc.currency)} | ${fmtDate(doc.issueDate)}` +
-            ` (id: ${doc.id})`,
-          );
-        }
+        const lines = [`# ${params.queue} queue (${ids.length} documents)`, ""];
+        for (const id of ids) lines.push(`- ${id}`);
         return textResult(lines.join("\n"));
       } catch (err) {
         return errorResult((err as Error).message);
@@ -437,6 +457,8 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
       documentId: z.string().uuid().describe("Document ID"),
       taskType: z.string().describe("Task type identifier"),
       action: z.enum(["create", "processed"]).default("create").describe("Create task or mark as processed"),
+      success: z.boolean().optional().describe("processed only: whether the task succeeded"),
+      message: z.string().optional().describe("processed only: result message"),
     },
     Annotations.create,
     async (params) => {
@@ -445,8 +467,13 @@ export function registerDocumentQueueTools(server: McpServer, client: WflowClien
 
         const safeTaskType = encodeURIComponent(params.taskType);
         if (params.action === "processed") {
+          const q: Record<string, string> = {};
+          if (params.success != null) q.success = String(params.success);
+          if (params.message) q.message = params.message;
           await client.put(
             `/api/${org}/documents/${params.documentId}/task/${safeTaskType}/processed`,
+            undefined,
+            q,
           );
           return textResult(`Task '${params.taskType}' marked as processed for document ${params.documentId}.`);
         }

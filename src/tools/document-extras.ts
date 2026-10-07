@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtUserName, orgParam, parseJsonParam, Annotations } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtUserName, identityName, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type { ApprovalProcess, Comment } from "../types.js";
 
 export function registerDocumentApprovalTools(server: McpServer, client: WflowClient): void {
@@ -47,7 +47,7 @@ export function registerDocumentApprovalTools(server: McpServer, client: WflowCl
       documentId: z.string().uuid().describe("Document ID"),
       templateId: z.string().uuid().describe("Approval template ID to apply"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -101,53 +101,11 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
 
         const lines = ["# Comments"];
         for (const c of data) {
-          const user = fmtUserName(c.user);
+          const user = identityName(c.author);
           const date = fmtDate(c.created);
           lines.push(`- **${user}** (${date}): ${c.text ?? ""}`);
         }
         return textResult(lines.join("\n"));
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  server.tool(
-    "wf_document_comment_add",
-    "Add a comment to a document",
-    {
-      organization: orgParam,
-      documentId: z.string().uuid().describe("Document ID"),
-      text: z.string().describe("Comment text"),
-    },
-    Annotations.create,
-    async (params) => {
-      try {
-        const org = client.resolveOrg(params.organization);
-        await client.post(`/api/${org}/documents/${params.documentId}/comments`, {
-          text: params.text,
-        });
-        return textResult(`Comment added to document **${params.documentId}**.`);
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  server.tool(
-    "wf_document_comment_delete",
-    "Delete a comment from a document (careful!)",
-    {
-      organization: orgParam,
-      documentId: z.string().uuid().describe("Document ID"),
-      commentId: z.string().uuid().describe("Comment ID to delete"),
-    },
-    Annotations.destroy,
-    async (params) => {
-      try {
-        const org = client.resolveOrg(params.organization);
-        await client.del(`/api/${org}/documents/${params.documentId}/comments/${params.commentId}`);
-        return textResult(`Comment ${params.commentId} deleted from document **${params.documentId}**.`);
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -163,7 +121,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
       action: z.enum(["list", "add", "remove"]).default("list").describe("Action to perform"),
       linkedDocumentId: z.string().uuid().optional().describe("Linked document ID (required for add/remove)"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -202,14 +160,20 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
     {
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
-      payments: z.string().describe("JSON string of payment data"),
+      payments: z
+        .string()
+        .describe(
+          'Payments as a JSON array of {"date": "YYYY-MM-DD", "info": string, "amount": number}. ' +
+          "Replaces the document's current payment list.",
+        ),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const parsed = parseJsonParam(params.payments, "payments");
         if (!parsed.ok) return parsed.error;
+        if (!Array.isArray(parsed.value)) return errorResult("'payments' must be a JSON array.");
         await client.put(`/api/${org}/documents/${params.documentId}/payments`, parsed.value);
         return textResult(`Payment information updated on document **${params.documentId}**.`);
       } catch (err) {
@@ -225,9 +189,12 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
-      rights: z.string().optional().describe("JSON string of rights data (required for set)"),
+      rights: z
+        .string()
+        .optional()
+        .describe('Teams with access as a JSON array of {"id": "<team UUID>"} (required for set; replaces current rights)'),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -266,14 +233,12 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
           ? `/api/${org}/documents/${params.documentId}/tags`
           : `/api/${org}/documents/tags`;
 
-        const data = await client.get<Array<{ name?: string; id?: string }>>(path);
+        const data = await client.get<string[]>(path);
         if (!data?.length) return textResult("No tags found.");
 
         const heading = params.documentId ? "# Document Tags" : "# Organization Tags";
         const lines = [heading];
-        for (const tag of data) {
-          lines.push(`- ${tag.name ?? tag.id ?? "unnamed"}`);
-        }
+        for (const tag of data) lines.push(`- ${tag}`);
         return textResult(lines.join("\n"));
       } catch (err) {
         return errorResult((err as Error).message);
@@ -290,7 +255,7 @@ export function registerDocumentCollaborationTools(server: McpServer, client: Wf
       tag: z.string().describe("Tag name"),
       action: z.enum(["add", "remove"]).default("add").describe("Add or remove the tag"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

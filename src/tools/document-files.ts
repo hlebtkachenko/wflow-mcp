@@ -62,7 +62,7 @@ export function registerDocumentFileTools(server: McpServer, client: WflowClient
       documentId: z.string().uuid().describe("Document ID"),
       fileId: z.string().uuid().describe("File ID to stamp"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

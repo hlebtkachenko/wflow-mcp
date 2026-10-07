@@ -1,12 +1,20 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, orgParam, parseJsonParam, Annotations } from "../utils.js";
+import { textResult, errorResult, orgParam, parseJsonParam, Annotations, savedText, pageParams, pageQuery, pageHeading } from "../utils.js";
 import type {
+  Collection,
   DocumentType,
   ApprovalsTemplate,
   WebHookRegistration,
 } from "../types.js";
+
+const KINDS = ["IncomingInvoice", "OutgoingInvoice", "ExpenditureCashSlip", "SupplierOrder", "CustomerOrder", "Other", "Contract", "IncomeCashReceipt"] as const;
+export const INVOICE_TYPES = ["TaxInvoice", "CreditNote", "DebitNote", "Proforma", "TaxInvoicePayment"] as const;
+const WEBHOOK_ACTIONS = [
+  "All", "DocumentReadyToExtract", "DocumentReadyToExport", "DocumentUpdated", "DocumentApprovalProcessFinished",
+  "RegisterUpdated", "DocumentDeleted", "DocumentReadyToReview", "DocumentCreated", "DocumentReviewed",
+] as const;
 
 // ---------------------------------------------------------------------------
 // Document types
@@ -18,18 +26,21 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     "List available document types",
     {
       organization: orgParam,
+      ...pageParams,
     },
     Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const list = await client.get<DocumentType[]>(`/api/${org}/documents/types`);
-        if (!list?.length) return textResult("No document types found.");
-        const lines = [`# Document Types (${list.length})`];
+        const data = await client.get<Collection<DocumentType>>(`/api/${org}/documents/types`, pageQuery(params));
+        const list = data?.items ?? [];
+        if (!list.length) return textResult("No document types found.");
+        const lines = [pageHeading("Document Types", data, list.length)];
         for (const dt of list) {
           const parts = [`**${dt.name ?? "—"}**`];
           if (dt.kind) parts.push(`kind: ${dt.kind}`);
           if (dt.invoiceType) parts.push(`invoice: ${dt.invoiceType}`);
+          if (dt.id) parts.push(`id \`${dt.id}\``);
           lines.push(`- ${parts.join(" — ")}`);
         }
         return textResult(lines.join("\n"));
@@ -44,19 +55,21 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     "Create or update a document type",
     {
       organization: orgParam,
+      id: z.string().uuid().optional().describe("Document type ID (for update; omit to create)"),
       name: z.string().describe("Document type name"),
-      kind: z.string().optional().describe("Document kind"),
-      invoiceType: z.string().optional().describe("Invoice type"),
+      kind: z.enum(KINDS).optional().describe("Document kind"),
+      invoiceType: z.enum(INVOICE_TYPES).optional().describe("Invoice type"),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, string> = { name: params.name };
+        if (params.id) body.id = params.id;
         if (params.kind) body.kind = params.kind;
         if (params.invoiceType) body.invoiceType = params.invoiceType;
-        const result = await client.put<DocumentType>(`/api/${org}/documents/types`, body);
-        return textResult(`Document type saved. ID: ${result?.id ?? "—"}`);
+        const result = await client.put<unknown>(`/api/${org}/documents/types`, body);
+        return textResult(savedText("Document type saved.", result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -74,7 +87,10 @@ export function registerDocumentTypeTools(server: McpServer, client: WflowClient
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        await client.del(`/api/${org}/documents/types/${params.typeId}`);
+        // The spec declares this route literally as /documents/types/typeid:guid with typeId as a
+        // query parameter; it looks like an unexpanded route template ({typeId:guid}) on wflow's side,
+        // but we send exactly what the published contract says.
+        await client.del(`/api/${org}/documents/types/typeid:guid`, { typeId: params.typeId });
         return textResult(`Document type \`${params.typeId}\` deleted.`);
       } catch (err) {
         return errorResult((err as Error).message);
@@ -93,14 +109,16 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "List approval templates",
     {
       organization: orgParam,
+      ...pageParams,
     },
     Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const list = await client.get<ApprovalsTemplate[]>(`/api/${org}/approvalstemplates`);
-        if (!list?.length) return textResult("No approval templates found.");
-        const lines = [`# Approval Templates (${list.length})`];
+        const data = await client.get<Collection<ApprovalsTemplate>>(`/api/${org}/approvalstemplates`, pageQuery(params));
+        const list = data?.items ?? [];
+        if (!list.length) return textResult("No approval templates found.");
+        const lines = [pageHeading("Approval Templates", data, list.length)];
         for (const t of list) {
           const empty = t.isEmpty ? " (empty)" : "";
           lines.push(`- **${t.name ?? "—"}**${empty} — id \`${t.id}\``);
@@ -140,21 +158,26 @@ export function registerApprovalTemplateTools(server: McpServer, client: WflowCl
     "Create or update an approval template",
     {
       organization: orgParam,
+      id: z.string().uuid().optional().describe("Template ID (for update; omit to create)"),
       name: z.string().describe("Template name"),
-      teams: z.string().optional().describe("Team configuration as JSON string"),
+      teams: z
+        .string()
+        .optional()
+        .describe('Approval steps as a JSON array of {"teamId": "<team UUID>", "level": <step number, 1-based>}'),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { name: params.name };
+        if (params.id) body.id = params.id;
         if (params.teams) {
           const parsed = parseJsonParam(params.teams, "teams");
           if (!parsed.ok) return parsed.error;
           body.teams = parsed.value;
         }
-        const result = await client.put<ApprovalsTemplate>(`/api/${org}/approvalstemplates`, body);
-        return textResult(`Approval template saved. ID: ${result?.id ?? "—"}`);
+        const result = await client.put<unknown>(`/api/${org}/approvalstemplates`, body);
+        return textResult(savedText("Approval template saved.", result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -200,7 +223,7 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
         if (!list?.length) return textResult("No webhooks found.");
         const lines = [`# Webhooks (${list.length})`];
         for (const wh of list) {
-          const actions = wh.actions?.map((a) => a.action).join(", ") ?? "none";
+          const actions = wh.actions?.join(", ") || "none";
           lines.push(`- **${wh.webHookUri ?? "—"}** — ${wh.description ?? "no description"} [${actions}]`);
         }
         return textResult(lines.join("\n"));
@@ -215,23 +238,21 @@ export function registerWebhookTools(server: McpServer, client: WflowClient) {
     "Create or update a webhook registration",
     {
       organization: orgParam,
+      id: z.string().uuid().optional().describe("Registration ID (for update; omit to create)"),
       webHookUri: z.string().url().describe("Webhook callback URL"),
       description: z.string().optional().describe("Webhook description"),
-      actions: z.string().optional().describe("JSON string array of action names"),
+      actions: z.array(z.enum(WEBHOOK_ACTIONS)).optional().describe("Events that trigger the webhook"),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { webHookUri: params.webHookUri };
+        if (params.id) body.id = params.id;
         if (params.description) body.description = params.description;
-        if (params.actions) {
-          const parsed = parseJsonParam(params.actions, "actions");
-          if (!parsed.ok) return parsed.error;
-          body.actions = (parsed.value as string[]).map((a) => ({ action: a }));
-        }
-        const result = await client.put<WebHookRegistration>(`/api/${org}/webhookregistrations`, body);
-        return textResult(`Webhook saved. ID: ${result?.id ?? "—"}`);
+        if (params.actions) body.actions = params.actions;
+        const result = await client.put<unknown>(`/api/${org}/webhookregistrations`, body);
+        return textResult(savedText("Webhook saved.", result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -269,7 +290,7 @@ export function registerIntegrationTools(server: McpServer, client: WflowClient)
     {
       organization: orgParam,
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

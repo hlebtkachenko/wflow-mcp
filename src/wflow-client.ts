@@ -154,13 +154,18 @@ export class WflowClient {
           Accept: "application/json",
         };
 
-        const bodyStr = body != null ? JSON.stringify(body) : undefined;
-        if (bodyStr) headers["Content-Type"] = "application/json";
+        let payload: string | FormData | undefined;
+        if (body instanceof FormData) {
+          payload = body;
+        } else if (body !== undefined) {
+          payload = JSON.stringify(body);
+          headers["Content-Type"] = "application/json";
+        }
 
         const res = await fetch(url, {
           method: upperMethod,
           headers,
-          body: bodyStr,
+          body: payload,
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
 
@@ -221,9 +226,19 @@ export class WflowClient {
         return parsed;
       } catch (err) {
         lastError = err as Error;
-        if ((err as Error).name === "TimeoutError" && attempt < this.maxRetries) {
-          await sleep(1000 * 2 ** attempt);
-          continue;
+        if ((err as Error).name === "TimeoutError") {
+          // A write that timed out may still have been applied; repeating it could
+          // create a duplicate, so only reads are retried.
+          if (upperMethod !== "GET") {
+            throw new Error(
+              `Outcome unknown: wflow ${upperMethod} ${path} timed out after ${TIMEOUT_MS / 1000} s and was not retried. ` +
+              "It may have been applied. Verify the current state with the matching read tool (or wf_api_raw GET) before trying again.",
+            );
+          }
+          if (attempt < this.maxRetries) {
+            await sleep(1000 * 2 ** attempt);
+            continue;
+          }
         }
         break;
       }
@@ -253,19 +268,23 @@ export class WflowClient {
     return this.request<T>("GET", path, undefined, query);
   }
 
-  post<T = unknown>(path: string, body?: unknown) {
-    return this.request<T>("POST", path, body);
+  post<T = unknown>(path: string, body?: unknown, query?: Record<string, string>) {
+    return this.request<T>("POST", path, body, query);
   }
 
   put<T = unknown>(path: string, body?: unknown, query?: Record<string, string>) {
     return this.request<T>("PUT", path, body, query);
   }
 
+  postForm<T = unknown>(path: string, form: FormData, query?: Record<string, string>) {
+    return this.request<T>("POST", path, form, query);
+  }
+
   patch<T = unknown>(path: string, body?: unknown) {
     return this.request<T>("PATCH", path, body);
   }
 
-  del<T = unknown>(path: string) {
-    return this.request<T>("DELETE", path);
+  del<T = unknown>(path: string, query?: Record<string, string>) {
+    return this.request<T>("DELETE", path, undefined, query);
   }
 }

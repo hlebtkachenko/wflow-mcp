@@ -1,13 +1,15 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, orgParam, Annotations } from "../utils.js";
+import { textResult, errorResult, fmtDate, orgParam, Annotations, savedText, pageParams, pageQuery, pageHeading } from "../utils.js";
 import type {
   OrganizationEntity,
+  OrganizationDomain,
   UserFull,
   Identity,
-  Role,
-  Team,
+  Collection,
+  RoleBase,
+  TeamBase,
 } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -48,11 +50,11 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
     Annotations.read,
     async () => {
       try {
-        const list = await client.get<OrganizationEntity[]>("/api/user/myorganizations");
+        const list = await client.get<OrganizationDomain[]>("/api/user/myorganizations");
         if (!list?.length) return textResult("No organizations found.");
         const lines = [`# My Organizations (${list.length})`];
         for (const o of list) {
-          lines.push(`- **${o.name}** — \`${o.organizationUrlPart}\``);
+          lines.push(`- **${o.name ?? "—"}** — \`${o.subdomain ?? "—"}\``);
         }
         return textResult(lines.join("\n"));
       } catch (err) {
@@ -87,7 +89,7 @@ export function registerOrganizationTools(server: McpServer, client: WflowClient
 function fmtUser(u: UserFull): string {
   const id = u.identity as Identity | undefined;
   const name = [id?.firstName, id?.lastName].filter(Boolean).join(" ") || "—";
-  const email = id?.email ?? "—";
+  const email = id?.login ?? "—";
   const access = u.hasFullAccess ? "full" : "limited";
   return `- **${name}** (${email}) — id \`${u.id}\`, access: ${access}`;
 }
@@ -98,14 +100,16 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
     "List users in the organization",
     {
       organization: orgParam,
+      ...pageParams,
     },
     Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const list = await client.get<UserFull[]>(`/api/${org}/users`);
-        if (!list?.length) return textResult("No users found.");
-        const lines = [`# Users (${list.length})`];
+        const data = await client.get<Collection<UserFull>>(`/api/${org}/users`, pageQuery(params));
+        const list = data?.items ?? [];
+        if (!list.length) return textResult("No users found.");
+        const lines = [pageHeading("Users", data, list.length)];
         for (const u of list) lines.push(fmtUser(u));
         return textResult(lines.join("\n"));
       } catch (err) {
@@ -130,7 +134,7 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
         const lines = [
           `# User: ${id?.firstName ?? ""} ${id?.lastName ?? ""}`.trim(),
           `- **ID** ${u.id}`,
-          `- **Email** ${id?.email ?? "—"}`,
+          `- **Login** ${id?.login ?? "—"}`,
           `- **Full access** ${u.hasFullAccess ? "yes" : "no"}`,
           `- **Created** ${fmtDate(u.created)}`,
         ];
@@ -143,29 +147,33 @@ export function registerUserTools(server: McpServer, client: WflowClient) {
 
   server.tool(
     "wf_user_save",
-    "Create or update a user",
+    "Add a user to the organization or update an existing one, matched by login (e-mail). " +
+      "roles, teams and documentTypes replace the user's current assignments when given.",
     {
       organization: orgParam,
-      userId: z.string().uuid().optional().describe("User ID (for update)"),
-      email: z.string().optional().describe("User email"),
-      firstName: z.string().optional().describe("First name"),
-      lastName: z.string().optional().describe("Last name"),
+      login: z.string().describe("User login (e-mail address)"),
       hasFullAccess: z.boolean().optional().describe("Grant full access"),
+      roles: z.array(z.string().uuid()).optional().describe("Role IDs to assign (replaces current roles)"),
+      teams: z.array(z.string().uuid()).optional().describe("Team IDs to assign (replaces current teams)"),
+      documentTypes: z
+        .array(z.object({
+          id: z.string().uuid().describe("Document type ID"),
+          permission: z.enum(["All", "OnlyAssigned", "FullAccess"]).optional().describe("Access to documents of this type"),
+        }))
+        .optional()
+        .describe("Document type permissions (replaces current ones)"),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const body: Record<string, unknown> = {};
-        if (params.userId) body.id = params.userId;
+        const body: Record<string, unknown> = { login: params.login };
         if (params.hasFullAccess !== undefined) body.hasFullAccess = params.hasFullAccess;
-        const identity: Record<string, string> = {};
-        if (params.email) identity.email = params.email;
-        if (params.firstName) identity.firstName = params.firstName;
-        if (params.lastName) identity.lastName = params.lastName;
-        if (Object.keys(identity).length) body.identity = identity;
-        const result = await client.put<UserFull>(`/api/${org}/users`, body);
-        return textResult(`User saved. ID: ${result?.id ?? "—"}`);
+        if (params.roles) body.roles = params.roles.map((id) => ({ id }));
+        if (params.teams) body.teams = params.teams.map((id) => ({ id }));
+        if (params.documentTypes) body.documentTypes = params.documentTypes;
+        const result = await client.put<unknown>(`/api/${org}/users`, body);
+        return textResult(savedText(`User ${params.login} saved.`, result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -204,17 +212,18 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "List all roles in the organization",
     {
       organization: orgParam,
+      ...pageParams,
     },
     Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const list = await client.get<Role[]>(`/api/${org}/roles`);
-        if (!list?.length) return textResult("No roles found.");
-        const lines = [`# Roles (${list.length})`];
+        const data = await client.get<Collection<RoleBase>>(`/api/${org}/roles`, pageQuery(params));
+        const list = data?.items ?? [];
+        if (!list.length) return textResult("No roles found.");
+        const lines = [pageHeading("Roles", data, list.length)];
         for (const r of list) {
-          const userCount = r.users?.length ?? 0;
-          lines.push(`- **${r.name ?? "—"}** — ${r.description ?? "no description"} (${userCount} users)`);
+          lines.push(`- **${r.name ?? "—"}** — ${r.description ?? "no description"} (id \`${r.id}\`)`);
         }
         return textResult(lines.join("\n"));
       } catch (err) {
@@ -237,8 +246,8 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, string> = { name: params.name };
         if (params.description) body.description = params.description;
-        const result = await client.post<Role>(`/api/${org}/roles`, body);
-        return textResult(`Role created. ID: ${result?.id ?? "—"}`);
+        const result = await client.post<unknown>(`/api/${org}/roles`, body);
+        return textResult(savedText("Role created.", result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -254,7 +263,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().optional().describe("New role name"),
       description: z.string().optional().describe("New role description"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -295,18 +304,19 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
     "List all teams in the organization",
     {
       organization: orgParam,
+      ...pageParams,
     },
     Annotations.read,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
-        const list = await client.get<Team[]>(`/api/${org}/teams`);
-        if (!list?.length) return textResult("No teams found.");
-        const lines = [`# Teams (${list.length})`];
+        const data = await client.get<Collection<TeamBase>>(`/api/${org}/teams`, pageQuery(params));
+        const list = data?.items ?? [];
+        if (!list.length) return textResult("No teams found.");
+        const lines = [pageHeading("Teams", data, list.length)];
         for (const t of list) {
-          const userCount = t.users?.length ?? 0;
           const sys = t.system ? " [system]" : "";
-          lines.push(`- **${t.name ?? "—"}**${sys} — ${t.description ?? "no description"} (${userCount} users)`);
+          lines.push(`- **${t.name ?? "—"}**${sys} — ${t.description ?? "no description"} (id \`${t.id}\`)`);
         }
         return textResult(lines.join("\n"));
       } catch (err) {
@@ -329,8 +339,8 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, string> = { name: params.name };
         if (params.description) body.description = params.description;
-        const result = await client.post<Team>(`/api/${org}/teams`, body);
-        return textResult(`Team created. ID: ${result?.id ?? "—"}`);
+        const result = await client.post<unknown>(`/api/${org}/teams`, body);
+        return textResult(savedText("Team created.", result));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -346,7 +356,7 @@ export function registerRoleTeamTools(server: McpServer, client: WflowClient) {
       name: z.string().optional().describe("New team name"),
       description: z.string().optional().describe("New team description"),
     },
-    Annotations.write,
+    Annotations.update,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

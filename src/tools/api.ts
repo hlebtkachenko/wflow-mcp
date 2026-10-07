@@ -21,7 +21,7 @@ export function registerApiTools(server: McpServer, client: WflowClient) {
         .optional()
         .describe("Request body as JSON string (parsed before sending)"),
     },
-    { readOnlyHint: false, openWorldHint: true },
+    Annotations.raw,
     async (params) => {
       try {
         let parsedBody: unknown;

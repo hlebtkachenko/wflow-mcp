@@ -13,7 +13,7 @@ function fmtDefinition(d: PropertyDefinition): string {
 }
 
 function fmtProperty(p: Property): string {
-  return `- **${p.name ?? p.definitionId ?? "?"}** = ${p.value ?? ""}`;
+  return `- **${p.name ?? p.id ?? "?"}** = ${p.value ?? ""} (id: ${p.id ?? "?"})`;
 }
 
 export function registerDocumentPropertyTools(server: McpServer, client: WflowClient): void {
@@ -47,17 +47,19 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
     "Create or update a document property definition",
     {
       organization: orgParam,
+      id: z.string().optional().describe("Definition ID (for update; omit to create)"),
       name: z.string().describe("Property name"),
       type: z.string().describe("Property type (e.g. text, number, date, select)"),
       order: z.number().int().optional().describe("Display order"),
       show: z.boolean().optional().describe("Whether to show the property"),
       editable: z.boolean().optional().describe("Whether the property is editable"),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { name: params.name, type: params.type };
+        if (params.id) body.id = params.id;
         if (params.order != null) body.order = params.order;
         if (params.show != null) body.show = params.show;
         if (params.editable != null) body.editable = params.editable;
@@ -96,9 +98,12 @@ export function registerDocumentPropertyTools(server: McpServer, client: WflowCl
       organization: orgParam,
       documentId: z.string().uuid().describe("Document ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
-      properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
+      properties: z
+        .string()
+        .optional()
+        .describe('JSON array of {"id": "<property definition ID>", "value": <value>} (required for set; replaces current values)'),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
@@ -179,17 +184,19 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
     "Create or update a file property definition",
     {
       organization: orgParam,
+      id: z.string().optional().describe("Definition ID (for update; omit to create)"),
       name: z.string().describe("Property name"),
       type: z.string().describe("Property type (e.g. text, number, date, select)"),
       order: z.number().int().optional().describe("Display order"),
       show: z.boolean().optional().describe("Whether to show the property"),
       editable: z.boolean().optional().describe("Whether the property is editable"),
     },
-    Annotations.write,
+    Annotations.upsert,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);
         const body: Record<string, unknown> = { name: params.name, type: params.type };
+        if (params.id) body.id = params.id;
         if (params.order != null) body.order = params.order;
         if (params.show != null) body.show = params.show;
         if (params.editable != null) body.editable = params.editable;
@@ -228,9 +235,12 @@ export function registerFilePropertyTools(server: McpServer, client: WflowClient
       organization: orgParam,
       fileId: z.string().uuid().describe("Storage file ID"),
       action: z.enum(["get", "set"]).default("get").describe("Action to perform"),
-      properties: z.string().optional().describe("JSON string array of {definitionId, value} (required for set)"),
+      properties: z
+        .string()
+        .optional()
+        .describe('JSON array of {"id": "<property definition ID>", "value": <value>} (required for set; replaces current values)'),
     },
-    Annotations.write,
+    Annotations.replace,
     async (params) => {
       try {
         const org = client.resolveOrg(params.organization);

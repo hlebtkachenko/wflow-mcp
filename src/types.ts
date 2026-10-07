@@ -84,10 +84,10 @@ export interface DocumentFile {
 }
 
 export interface DocumentEvent {
-  eventType?: string;
+  type?: string;
   created?: string;
-  user?: UserBase;
-  description?: string;
+  identity?: Identity;
+  info?: string;
 }
 
 export interface Serie {
@@ -168,7 +168,7 @@ export interface Comment {
   id?: string;
   text?: string;
   created?: string;
-  user?: UserBase;
+  author?: Identity;
 }
 
 export interface Register {
@@ -190,7 +190,6 @@ export interface PropertyDefinition {
 
 export interface Property {
   id?: string;
-  definitionId?: string;
   name?: string;
   value?: string;
 }
@@ -210,9 +209,33 @@ export interface UserBase {
 }
 
 export interface Identity {
+  login?: string;
   firstName?: string;
   lastName?: string;
-  email?: string;
+  fullName?: string;
+}
+
+export interface Collection<T> {
+  page?: number;
+  pageSize?: number;
+  totalItems?: number;
+  items?: T[];
+}
+
+export interface RoleBase {
+  id: string;
+  name?: string;
+  description?: string;
+}
+
+export interface TeamBase extends RoleBase {
+  system?: boolean;
+}
+
+export interface OrganizationDomain {
+  name?: string;
+  subdomain?: string;
+  baseURL?: string;
 }
 
 export interface UserFull extends UserBase {
@@ -220,36 +243,11 @@ export interface UserFull extends UserBase {
   hasFullAccess?: boolean;
 }
 
-export interface Role {
-  id: string;
-  name?: string;
-  description?: string;
-  users?: UserBase[];
-  rights?: Right[];
-}
-
-export interface Right {
-  id?: string;
-  name?: string;
-}
-
-export interface Team {
-  id: string;
-  name?: string;
-  description?: string;
-  system?: boolean;
-  users?: UserBase[];
-}
-
 export interface WebHookRegistration {
   id?: string;
   webHookUri?: string;
   description?: string;
-  actions?: WebHookAction[];
-}
-
-export interface WebHookAction {
-  action?: string;
+  actions?: string[];
 }
 
 export interface DocumentType {
