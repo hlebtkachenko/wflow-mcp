@@ -161,7 +161,7 @@ export function registerDocumentTools(server: McpServer, client: WflowClient): v
     {
       organization: orgParam,
       id: z.string().uuid().optional().describe("Document ID (for update)"),
-      type: z.object({ id: z.string() }).optional().describe("Document type"),
+      type: z.object({ id: z.string().uuid() }).optional().describe("Document type"),
       number: z.string().optional().describe("Document number"),
       internalCode: z.string().optional().describe("Internal code"),
       variableSymbol: z.string().optional().describe("Variable symbol"),
