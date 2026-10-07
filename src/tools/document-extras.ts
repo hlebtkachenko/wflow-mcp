@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtUserName, identityName, orgParam, parseJsonParam, Annotations } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtApprovalProcess, identityName, orgParam, parseJsonParam, Annotations } from "../utils.js";
 import type { ApprovalProcess, Comment } from "../types.js";
 
 export function registerDocumentApprovalTools(server: McpServer, client: WflowClient): void {
@@ -22,17 +22,7 @@ export function registerDocumentApprovalTools(server: McpServer, client: WflowCl
 
         if (!data) return textResult("No approval process found on this document.");
 
-        const lines: string[] = [`# Approval Status`, `- **Status:** ${data.status ?? "unknown"}`];
-
-        if (data.items?.length) {
-          lines.push("", "## Steps");
-          for (const item of data.items) {
-            const users = item.users?.map(fmtUserName).join(", ") || "none";
-            lines.push(`- **Step ${item.order ?? "?"}** — ${item.status ?? "pending"} (${users})`);
-          }
-        }
-
-        return textResult(lines.join("\n"));
+        return textResult(fmtApprovalProcess(`Approvals — Document ${params.documentId}`, data));
       } catch (err) {
         return errorResult((err as Error).message);
       }

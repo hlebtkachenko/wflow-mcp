@@ -23,6 +23,8 @@ const RESPONSES = {
   [`GET ${A}/documents/tags`]: ["paid", "urgent"],
   [`PUT ${A}/documents`]: D,
   [`POST ${A}/roles`]: T,
+  [`GET ${A}/documents/${D}/approvals`]: { pathName: "Two-step", items: [{ level: 1, team: { id: T, name: "Finance" }, identity: { fullName: "Jana Testová" }, date: "2026-01-15T10:00:00Z", status: "Approved" }] },
+  [`GET ${A}/storage/files/${F}/approvals`]: { pathName: "Two-step", items: [{ level: 2, team: { id: T, name: "Finance" }, status: "NotApproved" }] },
 };
 
 let fake;
@@ -281,6 +283,16 @@ test("write results handle 204 and string IDs", async () => {
   assert.equal((await call("wf_team_create", { name: "Finance" })).text, "Team created.");
   assert.equal((await call("wf_role_create", { name: "Approver" })).text, `Role created. ID: ${T}`);
   assert.equal((await call("wf_document_save", { number: "FV-2" })).text, `Document created. ID: ${D}`);
+});
+
+// ApprovalProcess has pathName and items {level, team, identity, date, status}.
+test("approval tools show the spec's ApprovalProcess fields", async () => {
+  const doc = (await call("wf_document_approvals", { documentId: D })).text;
+  assert.match(doc, /Two-step/);
+  assert.match(doc, /Level 1.*Approved.*Finance.*Jana Testová.*2026-01-15/);
+  const file = (await call("wf_storage_file_approvals", { fileId: F })).text;
+  assert.match(file, /Two-step/);
+  assert.match(file, /Level 2.*NotApproved.*Finance/);
 });
 
 test("HTTP errors reach the model as isError", async () => {

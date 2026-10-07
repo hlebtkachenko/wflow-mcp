@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WflowClient } from "../wflow-client.js";
-import { textResult, errorResult, fmtDate, fmtUserName, orgParam, parseJsonParam, Annotations, idOf } from "../utils.js";
+import { textResult, errorResult, fmtDate, fmtApprovalProcess, orgParam, parseJsonParam, Annotations, idOf } from "../utils.js";
 import type {
   StorageFile,
   StorageFileCollection,
@@ -331,18 +331,7 @@ export function registerStorageFolderTools(server: McpServer, client: WflowClien
         const data = await client.get<ApprovalProcess>(base);
         if (!data) return textResult("No approval process found on this file.");
 
-        const lines = [`# Approvals — File \`${params.fileId}\``, ""];
-        if (data.status) lines.push(`- **Status** ${data.status}`);
-
-        if (data.items && data.items.length > 0) {
-          lines.push("");
-          for (const item of data.items) {
-            const users = item.users?.map(fmtUserName).join(", ");
-            lines.push(`- **Step ${item.order ?? "?"}** ${item.status ?? "unknown"} — ${users ?? "no users"}`);
-          }
-        }
-
-        return textResult(lines.join("\n"));
+        return textResult(fmtApprovalProcess(`Approvals — File ${params.fileId}`, data));
       } catch (err) {
         return errorResult((err as Error).message);
       }

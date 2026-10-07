@@ -148,14 +148,16 @@ export interface ApprovalStatus {
 }
 
 export interface ApprovalProcess {
-  status?: string;
+  pathName?: string;
   items?: ApprovalProcessItem[];
 }
 
 export interface ApprovalProcessItem {
-  order?: number;
+  level?: number;
+  team?: TeamBase;
+  identity?: Identity;
+  date?: string;
   status?: string;
-  users?: UserBase[];
 }
 
 export interface ApprovalsTemplate {

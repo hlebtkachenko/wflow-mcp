@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { ApprovalProcess } from "./types.js";
 
 export function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
@@ -20,9 +21,19 @@ export function fmtAmount(amount?: number | null, currency?: string | null): str
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
-export function fmtUserName(user?: { identity?: { firstName?: string; lastName?: string } }): string {
-  if (!user?.identity) return "unknown";
-  return [user.identity.firstName, user.identity.lastName].filter(Boolean).join(" ") || "unknown";
+export function fmtApprovalProcess(title: string, data: ApprovalProcess): string {
+  const lines = [`# ${title}`, `- **Approval path** ${data.pathName ?? "—"}`];
+  if (data.items?.length) {
+    lines.push("", "## Steps");
+    for (const item of data.items) {
+      const who = item.identity ? identityName(item.identity) : "unassigned";
+      lines.push(
+        `- **Level ${item.level ?? "?"}** ${item.status ?? "None"} — team ${item.team?.name ?? "—"}, ${who}` +
+        (item.date ? ` (${fmtDate(item.date)})` : ""),
+      );
+    }
+  }
+  return lines.join("\n");
 }
 
 export function parseJsonParam(json: string, paramName: string): { ok: true; value: unknown } | { ok: false; error: ReturnType<typeof errorResult> } {
