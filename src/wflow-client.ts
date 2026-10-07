@@ -1,8 +1,8 @@
 import { ResponseCache } from "./cache.js";
 import type { TokenResponse } from "./types.js";
 
-const BASE_URL = "https://api.wflow.com";
-const TOKEN_URL = "https://account.wflow.com/connect/token";
+const DEFAULT_BASE_URL = "https://api.wflow.com";
+const DEFAULT_TOKEN_URL = "https://account.wflow.com/connect/token";
 const TIMEOUT_MS = 30_000;
 const FORBIDDEN_PATH = /[#]|\.\./;
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
@@ -22,6 +22,8 @@ export interface WflowConfig {
   clientId: string;
   clientSecret: string;
   organization?: string;
+  baseUrl?: string;
+  tokenUrl?: string;
   cacheTtl?: number;
   maxRetries?: number;
 }
@@ -42,6 +44,8 @@ function sleep(ms: number): Promise<void> {
 export class WflowClient {
   private clientId: string;
   private clientSecret: string;
+  private baseUrl: string;
+  private tokenUrl: string;
   readonly defaultOrg: string | undefined;
   readonly cache: ResponseCache;
 
@@ -54,6 +58,8 @@ export class WflowClient {
     this.clientId = config.clientId;
     this.clientSecret = config.clientSecret;
     this.defaultOrg = config.organization;
+    this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    this.tokenUrl = config.tokenUrl ?? DEFAULT_TOKEN_URL;
     this.maxRetries = config.maxRetries ?? 3;
     this.cache = new ResponseCache(config.cacheTtl ?? 120);
   }
@@ -81,7 +87,7 @@ export class WflowClient {
       scope: "uccl_common_api",
     });
 
-    const res = await fetch(TOKEN_URL, {
+    const res = await fetch(this.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
@@ -126,7 +132,7 @@ export class WflowClient {
     validatePath(path);
 
     const upperMethod = method.toUpperCase();
-    let url = `${BASE_URL}${path}`;
+    let url = `${this.baseUrl}${path}`;
     if (query && Object.keys(query).length > 0) {
       url += "?" + new URLSearchParams(query).toString();
     }

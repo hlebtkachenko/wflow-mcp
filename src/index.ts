@@ -39,6 +39,8 @@ const client = new WflowClient({
   clientId: required("WFLOW_CLIENT_ID"),
   clientSecret: required("WFLOW_CLIENT_SECRET"),
   organization: env("WFLOW_ORGANIZATION"),
+  baseUrl: env("WFLOW_API_URL"),
+  tokenUrl: env("WFLOW_TOKEN_URL"),
   cacheTtl: optInt("WFLOW_CACHE_TTL", 120),
   maxRetries: optInt("WFLOW_MAX_RETRIES", 3),
 });
