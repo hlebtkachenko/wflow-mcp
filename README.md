@@ -1,6 +1,6 @@
 # Community wflow MCP Server
 
-**Not affiliated with wflow**. Independent open-source project, not endorsed or supported by wflow.
+**Not affiliated with wflow**. Independent open-source project, not endorsed or supported by wflow. Official MCP server: [wflow AI Connect](https://mcp.wflow.com).
 
 [![CI](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
