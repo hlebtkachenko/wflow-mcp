@@ -1,6 +1,6 @@
 # AGENTS.md
 
-MCP server for the wflow REST API (documents, storage, approvals, registers, organization). TypeScript, Node 22+, stdio transport. Layout and design: [ARCHITECTURE.md](ARCHITECTURE.md).
+Community MCP server (not affiliated with wflow) for the wflow REST API (documents, storage, approvals, registers, organization). TypeScript, Node 22+, stdio transport. Layout and design: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Commands
 

@@ -1,7 +1,7 @@
 {
   "name": "wflow-mcp",
   "version": "2.0.0",
-  "description": "MCP server for wflow — documents, storage, approvals, registers, organization management",
+  "description": "Community MCP server for wflow (not affiliated with wflow): documents, storage, approvals, registers, organization management",
   "type": "module",
   "main": "dist/index.js",
   "license": "MIT",

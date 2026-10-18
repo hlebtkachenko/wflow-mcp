@@ -1,11 +1,13 @@
-# wflow MCP Server
+# Community wflow MCP Server
+
+**Not affiliated with wflow**. Independent open-source project, not endorsed or supported by wflow.
 
 [![CI](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/hlebtkachenko/wflow-mcp/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Node.js Version](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7-blue)
 
-MCP server for [wflow](https://www.wflow.com) — Czech accounting automation platform for document management, expense tracking, approvals, storage, and organizational workflows.
+Community MCP server for [wflow](https://www.wflow.com), a Czech accounting automation platform for document management, expense tracking, approvals, storage, and organizational workflows.
 
 76 tools across 10 categories, checked against the official OpenAPI spec. OAuth2 client credentials authentication, response caching with configurable TTL, retries for rate limits and read timeouts, and actionable error messages.
 
